@@ -139,6 +139,7 @@ class TrafficEnv(gym.Env):
             self.traffic_flow["vehicle_count"][idx].append(
                 traci.inductionloop.getLastIntervalVehicleNumber(detector))
 
+
     def _reset_traffic_flow(self):
         """
         Resets the traffic flow for the environment.
@@ -156,6 +157,7 @@ class TrafficEnv(gym.Env):
         :return: The information for the environment.
         """
         pass
+
 
     def reset(self, seed=None, options=None):
         """
