@@ -72,6 +72,7 @@ class StateTrafficEnv(gym.Env):
             # TODO: ask about shape and max values
             "occupancy": spaces.Box(low=0.0, high=100.0, shape=(4,), dtype=np.float32),
             "vehicle_count": spaces.Box(low=0, high=7200, shape=(4,), dtype=np.int32),
+            "current_state": spaces.Discrete(3)
         })
 
         self.observation_history = {
@@ -125,7 +126,7 @@ class StateTrafficEnv(gym.Env):
         vehicle_count = []
         for idx in range(len(self.detectors)):
             try:
-                occupancy.append(np.mean(self.observation_history["occupancy"][idx])) # possibly vhange to last value
+                occupancy.append(np.mean(self.observation_history["occupancy"][idx])) # possibly change to last value
             except Exception:
                 occupancy.append(0.0)
 
@@ -136,7 +137,8 @@ class StateTrafficEnv(gym.Env):
 
         obs = {
             "occupancy": np.array(occupancy, dtype=np.float32),
-            "vehicle_count": np.array(vehicle_count, dtype=np.int32)
+            "vehicle_count": np.array(vehicle_count, dtype=np.int32),
+            "current_state": self.current_state
         }
 
         return obs
