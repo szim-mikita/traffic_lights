@@ -67,7 +67,7 @@ class TrafficEnv(gym.Env):
             if sys.platform == "darwin":
                 self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo"
             else:
-                self.sumo_binary = '/var/lib/flatpak/app/org.eclipse.sumo/x86_64/stable/bc8bf960e2dcde54fcf3c014883f5316456dfcced8b394291a38a6ff707d92ba/files/bin/sumo'
+                self.sumo_binary = "/home/nikita/sumo/bin/sumo"
         else:
             #self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.19.0/bin/sumo-gui"
             #self.sumo_binary = checkBinary('sumo-gui')

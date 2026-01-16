@@ -6,7 +6,7 @@
     <input>
         <sumocfg-file value="C:\Users\kende\Desktop\SUMO_SmartCity_design_based_2022\SmartCity.sumocfg"/>
         <additional-files value="C:\Users\kende\Desktop\SUMO_SmartCity_design_based_2022\SmartCity2.add.xml"/>
-        <route-files value="C:\Users\kende\Desktop\SUMO_SmartCity_design_based_2022\SmartCity.rou.xml"/>
+        <route-files value="C:\Users\kende\Desktop\SUMO_SmartCity_design_based_2022\SmartCitybck.rou.xml"/>
         <sumo-net-file value="C:\Users\kende\Desktop\SUMO_SmartCity_design_based_2022\SC_SU-102022_v01.net.xml"/>
     </input>
 

@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2025-11-21T13:10:47.502273+01:00 by Eclipse SUMO GUI 1.25.0
+<!-- generated on 2026-01-16T17:01:33.935416+01:00 by Eclipse SUMO sumo v1_25_0+0955-b1df2471f66
 <sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
 
     <input>
-        <net-file value="/home/nikita/dev/project_lab/state_graph_traffic/sumo_files/SC_SU-102022_v01.net.xml"/>
-        <route-files value="/home/nikita/dev/project_lab/state_graph_traffic/sumo_files/SmartCity.rou.xml"/>
-        <additional-files value="/home/nikita/dev/project_lab/state_graph_traffic/sumo_files/SmartCity.add.xml"/>
+        <net-file value="/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/SC_SU-102022_v01.net.xml"/>
+        <route-files value="/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/dynamic_routes.rou.xml"/>
+        <additional-files value="/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/SmartCity2.add.xml"/>
     </input>
 
     <output>
-        <netstate-dump value="/home/nikita/dev/project_lab/state_graph_traffic/sumo_files/virtualtraffic.xml"/>
+        <netstate-dump value="/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/virtualtraffic.xml"/>
     </output>
 
     <time>
@@ -19,6 +19,7 @@
     </time>
 
     <processing>
+        <scale value="1"/>
         <time-to-teleport value="60"/>
     </processing>
 
@@ -29,22 +30,25 @@
     </report>
 
     <gui_only>
-        <gui-settings-file value="/home/nikita/dev/project_lab/state_graph_traffic/sumo_files/gui-settings.xml"/>
+        <gui-settings-file value="/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/gui-settings.xml"/>
+        <quit-on-end value="true"/>
+        <start value="true"/>
     </gui_only>
 
 </sumoConfiguration>
 -->
 
 <detector xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/det_e1_file.xsd">
-    <interval begin="0.00" end="30.00" id="e1_3" nVehContrib="2" flow="240.00" occupancy="5.11" speed="7.21" harmonicMeanSpeed="6.52" length="5.00" nVehEntered="2"/>
-    <interval begin="30.00" end="60.00" id="e1_3" nVehContrib="3" flow="360.00" occupancy="12.98" speed="4.63" harmonicMeanSpeed="3.85" length="5.00" nVehEntered="3"/>
-    <interval begin="60.00" end="90.00" id="e1_3" nVehContrib="3" flow="360.00" occupancy="5.55" speed="9.52" harmonicMeanSpeed="9.01" length="5.00" nVehEntered="3"/>
-    <interval begin="90.00" end="120.00" id="e1_3" nVehContrib="2" flow="240.00" occupancy="4.96" speed="7.22" harmonicMeanSpeed="6.72" length="5.00" nVehEntered="2"/>
-    <interval begin="120.00" end="150.00" id="e1_3" nVehContrib="3" flow="360.00" occupancy="11.60" speed="4.73" harmonicMeanSpeed="4.31" length="5.00" nVehEntered="3"/>
-    <interval begin="150.00" end="180.00" id="e1_3" nVehContrib="5" flow="600.00" occupancy="8.14" speed="10.33" harmonicMeanSpeed="10.23" length="5.00" nVehEntered="5"/>
-    <interval begin="180.00" end="210.00" id="e1_3" nVehContrib="2" flow="240.00" occupancy="5.00" speed="7.25" harmonicMeanSpeed="6.67" length="5.00" nVehEntered="2"/>
-    <interval begin="210.00" end="240.00" id="e1_3" nVehContrib="3" flow="360.00" occupancy="12.05" speed="4.94" harmonicMeanSpeed="4.15" length="5.00" nVehEntered="3"/>
-    <interval begin="240.00" end="270.00" id="e1_3" nVehContrib="3" flow="360.00" occupancy="5.75" speed="8.91" harmonicMeanSpeed="8.69" length="5.00" nVehEntered="3"/>
-    <interval begin="270.00" end="300.00" id="e1_3" nVehContrib="2" flow="240.00" occupancy="5.21" speed="6.98" harmonicMeanSpeed="6.40" length="5.00" nVehEntered="2"/>
-    <interval begin="300.00" end="304.00" id="e1_3" nVehContrib="0" flow="0.00" occupancy="0.00" speed="-1.00" harmonicMeanSpeed="-1.00" length="-1.00" nVehEntered="0"/>
+    <interval begin="0.00" end="300.00" id="e1_3" nVehContrib="50" flow="600.00" occupancy="14.45" speed="6.28" harmonicMeanSpeed="5.77" length="5.00" nVehEntered="50"/>
+    <interval begin="300.00" end="600.00" id="e1_3" nVehContrib="50" flow="600.00" occupancy="14.58" speed="6.32" harmonicMeanSpeed="5.71" length="5.00" nVehEntered="50"/>
+    <interval begin="600.00" end="900.00" id="e1_3" nVehContrib="59" flow="708.00" occupancy="16.89" speed="6.39" harmonicMeanSpeed="5.87" length="5.00" nVehEntered="60"/>
+    <interval begin="900.00" end="1200.00" id="e1_3" nVehContrib="49" flow="588.00" occupancy="13.60" speed="6.46" harmonicMeanSpeed="5.95" length="5.00" nVehEntered="48"/>
+    <interval begin="1200.00" end="1500.00" id="e1_3" nVehContrib="50" flow="600.00" occupancy="14.99" speed="6.16" harmonicMeanSpeed="5.56" length="5.00" nVehEntered="50"/>
+    <interval begin="1500.00" end="1800.00" id="e1_3" nVehContrib="60" flow="720.00" occupancy="17.07" speed="6.30" harmonicMeanSpeed="5.86" length="5.00" nVehEntered="60"/>
+    <interval begin="1800.00" end="2100.00" id="e1_3" nVehContrib="47" flow="564.00" occupancy="14.03" speed="6.08" harmonicMeanSpeed="5.58" length="5.00" nVehEntered="47"/>
+    <interval begin="2100.00" end="2400.00" id="e1_3" nVehContrib="49" flow="588.00" occupancy="14.83" speed="6.06" harmonicMeanSpeed="5.51" length="5.00" nVehEntered="49"/>
+    <interval begin="2400.00" end="2700.00" id="e1_3" nVehContrib="60" flow="720.00" occupancy="17.30" speed="6.21" harmonicMeanSpeed="5.78" length="5.00" nVehEntered="60"/>
+    <interval begin="2700.00" end="3000.00" id="e1_3" nVehContrib="47" flow="564.00" occupancy="13.59" speed="6.23" harmonicMeanSpeed="5.76" length="5.00" nVehEntered="47"/>
+    <interval begin="3000.00" end="3300.00" id="e1_3" nVehContrib="48" flow="576.00" occupancy="31.55" speed="5.85" harmonicMeanSpeed="2.54" length="5.00" nVehEntered="48"/>
+    <interval begin="3300.00" end="3600.00" id="e1_3" nVehContrib="58" flow="696.00" occupancy="16.63" speed="6.27" harmonicMeanSpeed="5.90" length="5.00" nVehEntered="59"/>
 </detector>

@@ -1,1 +1,1 @@
-from state_graph_traffic.gym_envs.envs.state_traffic_env import StateTrafficEnv
+from gym_envs.envs.state_traffic_env import StateTrafficEnv

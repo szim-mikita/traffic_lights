@@ -1,151 +1,307 @@
+import argparse
 import math
 import random
+from dataclasses import dataclass
 from collections import namedtuple, deque
+from typing import Any, Dict, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 import gymnasium as gym
+from gym_envs.envs.state_traffic_env import StateTrafficEnv
 
-# Device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Replay memory
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward', 'done'))
+Transition = namedtuple("Transition", ("state", "action", "next_state", "reward", "done"))
+
 
 class ReplayMemory:
-    def __init__(self, capacity):
+    def __init__(self, capacity: int):
         self.memory = deque([], maxlen=capacity)
 
     def push(self, *args):
-        """Save a transition"""
         self.memory.append(Transition(*args))
 
-    def sample(self, batch_size):
+    def sample(self, batch_size: int):
         return random.sample(self.memory, batch_size)
 
     def __len__(self):
         return len(self.memory)
 
-# Q Network model
+
 class DQN(nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=128, output_dim=3):
-        super(DQN, self).__init__()
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
+        super().__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-# Hyperparameters
-BATCH_SIZE = 128
-GAMMA = 0.99
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 2000
-TAU = 0.005
-LR = 3e-4
-MEMORY_CAPACITY = 10000
 
-# Initialize networks
-policy_net = DQN(input_dim=3, hidden_dim=128, output_dim=3).to(device)
-target_net = DQN(input_dim=3, hidden_dim=128, output_dim=3).to(device)
-target_net.load_state_dict(policy_net.state_dict())
-target_net.eval()
+@dataclass
+class DQNConfig:
+    hidden_dim: int = 128
 
-optimizer = optim.Adam(policy_net.parameters(), lr=LR)
-memory = ReplayMemory(MEMORY_CAPACITY)
+    batch_size: int = 128
+    gamma: float = 0.99
+    lr: float = 3e-4
+    tau: float = 0.005
+    memory_capacity: int = 50_000
 
-env = gym.make('StateTrafficEnv', render_mode ='console')
+    eps_start: float = 0.9
+    eps_end: float = 0.05
+    eps_decay: float = 2000
 
-steps_done = 0
+    grad_clip_value: float = 100.0
 
-def select_action(state):
-    global steps_done
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                    math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
-    if sample > eps_threshold:
-        with torch.no_grad():
-            # state should be 2-D: [1, input_dim]
-            return policy_net(state).argmax(dim=1).view(1,1)
-    else:
-        # randomly pick one of 3 actions
-        return torch.tensor([[random.randrange(3)]], device=device, dtype=torch.long)
+    # Scaling for your dict obs -> feature vector (tune if needed)
+    occ_scale: float = 100.0
+    veh_scale: float = 7200.0
+    time_scale: float = 60.0
 
-def optimize_model():
-    if len(memory) < BATCH_SIZE:
-        return
-    transitions = memory.sample(BATCH_SIZE)
-    batch = Transition(*zip(*transitions))
-    # Convert to tensors
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
-    done_batch = torch.cat(batch.done)
-    non_final_mask = ~done_batch
-    non_final_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not d])
 
-    # Q(s_t, a)
-    state_action_values = policy_net(state_batch).gather(1, action_batch)
+class StateDictFeaturizer:
+    """
+    Converts your env Dict observation to a flat vector.
+    Expects keys (matching your first code):
+      - occupancy: (4,)
+      - vehicle_count: (4,)
+      - current_state: int
+      - time_in_state: (1,) or scalar
+    Output dim = 10
+    """
+    def __init__(self, cfg: DQNConfig):
+        self.cfg = cfg
+        self.input_dim = 10
 
-    # Compute V(s_{t+1}) using target_net
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    with torch.no_grad():
-        next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0]
-    expected_state_action_values = reward_batch + (GAMMA * next_state_values * (~done_batch).float())
+    def __call__(self, obs: Dict[str, Any]) -> np.ndarray:
+        occ = np.asarray(obs["occupancy"], dtype=np.float32).reshape(-1)        # (4,)
+        veh = np.asarray(obs["vehicle_count"], dtype=np.float32).reshape(-1)    # (4,)
+        cs = float(obs["current_state"])
+        tis = obs["time_in_state"]
+        tis = float(tis[0]) if isinstance(tis, (np.ndarray, list, tuple)) else float(tis)
 
-    criterion = nn.SmoothL1Loss()  # Huber loss
-    loss = criterion(state_action_values.squeeze(), expected_state_action_values)
+        # normalize
+        occ_n = occ / self.cfg.occ_scale
+        veh_n = veh / self.cfg.veh_scale
+        tis_n = tis / self.cfg.time_scale
 
-    optimizer.zero_grad()
-    loss.backward()
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
-    optimizer.step()
-
-# ====== Main training loop (sketch) ======
-num_episodes = 500  # adjust as needed
-
-for i_episode in range(num_episodes):
-    # Initialize the environment and get initial state
-    # YOUR ENVIRONMENT → returns initial_state (np or torch array) of shape (3,)
-    state_np = env.reset()
-    state = torch.tensor([state_np], dtype=torch.float32, device=device)
-
-    for t in range(1000):  # or until done
-        action = select_action(state)
-        # Execute action in ENVIRONMENT
-        next_state_np, reward_val, done_flag, info = env.step(action.item())
-        reward = torch.tensor([reward_val], device=device)
-        done = torch.tensor([done_flag], device=device)
-        if not done_flag:
-            next_state = torch.tensor([next_state_np], dtype=torch.float32, device=device)
+        # current_state normalization
+        # if 1..3 => map to 0..1
+        # if 0..2 => map to 0..1
+        if cs >= 1.0:
+            cs_n = (cs - 1.0) / 2.0
         else:
-            next_state = torch.zeros_like(state)  # placeholder
+            cs_n = cs / 2.0
 
-        # Store transition
-        memory.push(state, action, next_state, reward, done)
+        feat = np.concatenate([occ_n, veh_n, np.array([cs_n, tis_n], dtype=np.float32)], axis=0)
+        return feat.astype(np.float32)
 
-        # Move to next state
-        state = next_state
 
-        # Perform one optimization step
-        optimize_model()
+class DQNAgent:
+    def __init__(
+        self,
+        action_dim: int,
+        cfg: Optional[DQNConfig] = None,
+        device: Optional[torch.device] = None,
+        featurizer: Optional[StateDictFeaturizer] = None,
+    ):
+        self.cfg = cfg or DQNConfig()
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Soft update of target network
-        for target_param, policy_param in zip(target_net.parameters(), policy_net.parameters()):
-            target_param.data.copy_(TAU*policy_param.data + (1.0-TAU)*target_param.data)
+        self.featurizer = featurizer or StateDictFeaturizer(self.cfg)
+        self.input_dim = self.featurizer.input_dim
+        self.action_dim = action_dim
 
-        if done_flag:
-            break
+        self.policy_net = DQN(self.input_dim, self.cfg.hidden_dim, self.action_dim).to(self.device)
+        self.target_net = DQN(self.input_dim, self.cfg.hidden_dim, self.action_dim).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
 
-    # Optionally: print/log episode length, reward, etc.
-    print(f"Episode {i_episode} finished after {t+1} timesteps")
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.cfg.lr)
+        self.memory = ReplayMemory(self.cfg.memory_capacity)
+        self.steps_done = 0
 
-print("Training complete")
+    def _obs_to_torch(self, obs_dict: Dict[str, Any]) -> torch.Tensor:
+        feat = self.featurizer(obs_dict)
+        return torch.tensor(feat, dtype=torch.float32, device=self.device).unsqueeze(0)  # [1,D]
+
+    def act(self, obs_dict: Dict[str, Any], eval_mode: bool = False) -> int:
+        state = self._obs_to_torch(obs_dict)
+
+        if eval_mode:
+            with torch.no_grad():
+                return int(self.policy_net(state).argmax(dim=1).item())
+
+        sample = random.random()
+        eps = self.cfg.eps_end + (self.cfg.eps_start - self.cfg.eps_end) * math.exp(
+            -1.0 * self.steps_done / self.cfg.eps_decay
+        )
+        self.steps_done += 1
+
+        if sample > eps:
+            with torch.no_grad():
+                return int(self.policy_net(state).argmax(dim=1).item())
+        return random.randrange(self.action_dim)
+
+    def remember(self, obs, action: int, next_obs, reward: float, done: bool):
+        s = self._obs_to_torch(obs)  # [1,D]
+        a = torch.tensor([[action]], device=self.device, dtype=torch.long)  # [1,1]
+        r = torch.tensor([reward], device=self.device, dtype=torch.float32) # [1]
+        d = torch.tensor([done], device=self.device, dtype=torch.bool)      # [1]
+        ns = torch.zeros_like(s) if done else self._obs_to_torch(next_obs)
+
+        self.memory.push(s, a, ns, r, d)
+
+    def train_step(self) -> Optional[float]:
+        if len(self.memory) < self.cfg.batch_size:
+            return None
+
+        transitions = self.memory.sample(self.cfg.batch_size)
+        batch = Transition(*zip(*transitions))
+
+        state_batch  = torch.cat(batch.state)   # [B,D]
+        action_batch = torch.cat(batch.action)  # [B,1]
+        reward_batch = torch.cat(batch.reward)  # [B]
+        done_batch   = torch.cat(batch.done)    # [B] bool
+
+        q_sa = self.policy_net(state_batch).gather(1, action_batch).squeeze(1)  # [B]
+
+        non_final_mask = ~done_batch
+        next_state_values = torch.zeros(self.cfg.batch_size, device=self.device)
+
+        if non_final_mask.any():
+            non_final_next_states = torch.cat(
+                [s for s, d in zip(batch.next_state, batch.done) if not d.item()]
+            )
+            with torch.no_grad():
+                next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
+
+        expected = reward_batch + self.cfg.gamma * next_state_values * non_final_mask.float()
+        loss = F.smooth_l1_loss(q_sa, expected)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), self.cfg.grad_clip_value)
+        self.optimizer.step()
+
+        # soft update
+        with torch.no_grad():
+            for tp, pp in zip(self.target_net.parameters(), self.policy_net.parameters()):
+                tp.data.mul_(1.0 - self.cfg.tau)
+                tp.data.add_(self.cfg.tau * pp.data)
+
+        return float(loss.item())
+
+    def save(self, path: str):
+        torch.save(
+            {
+                "policy_state_dict": self.policy_net.state_dict(),
+                "target_state_dict": self.target_net.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "steps_done": self.steps_done,
+            },
+            path,
+        )
+
+    def load(self, path: str):
+        ckpt = torch.load(path, map_location=self.device)
+        self.policy_net.load_state_dict(ckpt["policy_state_dict"])
+        self.target_net.load_state_dict(ckpt["target_state_dict"])
+        self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        self.steps_done = ckpt.get("steps_done", 0)
+        self.policy_net.eval()
+        self.target_net.eval()
+
+
+def run_eval(env: StateTrafficEnv, agent: DQNAgent, episodes: int, max_steps: int):
+    for ep in range(episodes):
+        obs, info = env.reset()
+        ep_return = 0.0
+
+        for t in range(max_steps):
+            action = agent.act(obs, eval_mode=True)
+
+            # OUTPUT that other people want:
+            print(action)
+
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = bool(terminated or truncated)
+
+            ep_return += float(reward)
+            obs = next_obs
+            if done:
+                break
+
+        print(f"[EVAL] episode={ep} steps={t+1} return={ep_return:.3f}")
+
+
+def run_train(env: StateTrafficEnv, agent: DQNAgent, episodes: int, max_steps: int, save_path: str):
+    for ep in range(episodes):
+        obs, info = env.reset()
+        ep_return = 0.0
+
+        for t in range(max_steps):
+            action = agent.act(obs, eval_mode=False)
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = bool(terminated or truncated)
+
+            agent.remember(obs, action, next_obs, float(reward), done)
+            loss = agent.train_step()
+
+            ep_return += float(reward)
+            obs = next_obs
+            print(f"    [TRAIN] episode={ep} step={t} action={action} reward={reward:.3f} loss={loss}")
+            if done:
+                print("Simulation finished after {} timesteps".format(t+1))
+                break
+
+        print(f"[TRAIN] episode={ep} steps={t+1} return={ep_return:.3f}")
+
+    agent.save(save_path)
+    print(f"Saved model to: {save_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["eval", "train"], default="train")
+    parser.add_argument("--model", type=str, default="traffic_dqn.pt")
+    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--max_steps", type=int, default=10000)
+    parser.add_argument("--render_mode", type=str, default="console")
+    args = parser.parse_args()
+
+    # Create env by directly calling your class (no gym registration needed)
+    env = gym.make(
+        "StateTrafficEnv",
+        render_mode=args.render_mode,
+    )
+
+    # action_dim must match your env: your env.action_space is Discrete(len(self.actions))
+    action_dim = int(env.action_space.n)
+
+    agent = DQNAgent(action_dim=action_dim)
+
+    if args.mode == "train":
+        run_train(env, agent, args.episodes, args.max_steps, args.model)
+    else:
+        # load weights if they exist
+        try:
+            agent.load(args.model)
+            print(f"Loaded model: {args.model}")
+        except Exception as e:
+            print(f"Could not load model '{args.model}'. Running with random/untrained policy. Error: {e}")
+
+        run_eval(env, agent, args.episodes, args.max_steps)
+
+    env.close()
+
+
+if __name__ == "__main__":
+    main()

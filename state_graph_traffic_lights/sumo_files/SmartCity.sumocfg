@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2025-11-20T12:39:52.236457+01:00 by Eclipse SUMO sumo 1.25.0
+<!-- generated on 2025-11-13 18:05:38 by Eclipse SUMO sumo Version 1.19.0
 -->
 
-<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
 
     <input>
         <net-file value="SC_SU-102022_v01.net.xml"/>
-        <route-files value="SmartCity.rou.xml"/>
-        <additional-files value="SmartCity.add.xml"/>
+        <route-files value="dynamic_routes.rou.xml"/>
+        <additional-files value="SmartCity2.add.xml"/>
     </input>
 
     <output>
@@ -34,4 +34,4 @@
         <gui-settings-file value="gui-settings.xml"/>
     </gui_only>
 
-</sumoConfiguration>
+</configuration>

@@ -5,6 +5,7 @@ import gymnasium as gym
 import numpy as np
 import traci
 from gymnasium import spaces
+import subprocess 
 
 
 class StateTrafficEnv(gym.Env):
@@ -27,6 +28,7 @@ class StateTrafficEnv(gym.Env):
         
         self.current_step = 0
         self.time_limit = simulation_time
+        self.time_in_state = 0
 
         # define transitions between main states
         # key: (current_state, action) -> value: list of (length (s), intermediate_state)
@@ -72,7 +74,8 @@ class StateTrafficEnv(gym.Env):
             # TODO: ask about shape and max values
             "occupancy": spaces.Box(low=0.0, high=100.0, shape=(4,), dtype=np.float32),
             "vehicle_count": spaces.Box(low=0, high=7200, shape=(4,), dtype=np.int32),
-            "current_state": spaces.Discrete(3)
+            "current_state": spaces.Discrete(3),
+            "time_in_state": spaces.Box(low=0, high=simulation_time, shape=(), dtype=np.int32)
         })
 
         self.observation_history = {
@@ -87,33 +90,59 @@ class StateTrafficEnv(gym.Env):
         if render_mode == 'console':
             #Check if mac or linux
             if sys.platform == "darwin":
-                self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo" # TODO: update to current path
+                self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo" 
             else:
-                self.sumo_binary = '/var/lib/flatpak/app/org.eclipse.sumo/x86_64/stable/bc8bf960e2dcde54fcf3c014883f5316456dfcced8b394291a38a6ff707d92ba/files/bin/sumo'
+                self.sumo_binary = "/home/nikita/sumo/bin/sumo"
         else:
-            #self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.19.0/bin/sumo-gui"
-            #self.sumo_binary = checkBinary('sumo-gui')
             #Check if mac or linux
             if sys.platform == "darwin":
-                self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo-gui" # TODO: update to current path
+                self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo-gui" 
             else:
-                self.sumo_binary = '/var/lib/flatpak/app/org.eclipse.sumo/x86_64/stable/bc8bf960e2dcde54fcf3c014883f5316456dfcced8b394291a38a6ff707d92ba/files/bin/sumo-gui'
+                self.sumo_binary = "/home/nikita/sumo/bin/sumo-gui"
         
         self.sumo_cmd = [
             self.sumo_binary,
             "-c",
-            "sumo_files/osm.sumocfg",
+            "/home/nikita/dev/project_lab/traffic_lights/state_graph_traffic_lights/sumo_files/SmartCity.sumocfg",
             "--start",
             "-e", str(simulation_time),
             "--quit-on-end",
             "--scale", str(traffic_scale)
         ]
 
+        print("Starting SUMO with command:", ' '.join(self.sumo_cmd))
+
         traci.start(self.sumo_cmd)
 
         # get TraCI ids
         self.detectors = traci.inductionloop.getIDList()
         self.edges = traci.edge.getIDList()
+
+
+    def _translate_to_sumo_phase(self, state):
+        """
+        Translates the given state to the corresponding SUMO traffic light state string.
+        :param state: The state to translate.
+        :return: The corresponding SUMO traffic light state string.
+        """
+        traffic_light_idx_correspondence = {
+            0: 2,
+            1: 2,
+            2: 3,
+            3: 3,
+            4: 0,
+            5: 0,
+        }
+        mapped_phase = [state[traffic_light_idx_correspondence[i]] for i in range(6)]
+        return mapped_phase
+    
+    def set_sumo_phase(self, state):
+        """
+        Sets the SUMO traffic light state to the given state.
+        :param state: The state to set.
+        """
+        tls = traci.trafficlight.getIDList()    
+        traci.trafficlight.setRedYellowGreenState(tls[3], self._translate_to_sumo_phase(state))
 
 
     def _get_obs(self):
@@ -138,7 +167,8 @@ class StateTrafficEnv(gym.Env):
         obs = {
             "occupancy": np.array(occupancy, dtype=np.float32),
             "vehicle_count": np.array(vehicle_count, dtype=np.int32),
-            "current_state": self.current_state
+            "current_state": self.current_state,
+            "time_in_state": self.time_in_state
         }
 
         return obs
@@ -210,10 +240,11 @@ class StateTrafficEnv(gym.Env):
             if reward:
                 reward_total += self._get_reward()
             self.current_step += 1
+            self.time_in_state += 1
         return reward_total
 
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         """
         Resets the environment.
         :param seed: The seed for the environment.
@@ -221,14 +252,15 @@ class StateTrafficEnv(gym.Env):
         """
         self._reset_observation_history()
 
-        traci.load(self.sumo_cmd)
+        traci.load(self.sumo_cmd[1:])
         time.sleep(0.001)
 
         self.current_step = 0
         self.current_state = self.initial_state
+        self.time_in_state = 0
 
         # set initial traffic light state
-        traci.trafficlight.setRedYellowGreenState("TL1", self.states[self.current_state])
+        self.set_sumo_phase(self.states[self.current_state])
 
         # step once to get initial observation
         self._skip_n_steps(1, observe=True)
@@ -257,10 +289,12 @@ class StateTrafficEnv(gym.Env):
             if transition_key in self.transitions:
                 for length, intermediate_state in self.transitions[transition_key]:
                     # set intermediate state
-                    traci.trafficlight.setRedYellowGreenState("TL1", intermediate_state)
+                    self.set_sumo_phase(intermediate_state)
                     # step simulation
                     self._skip_n_steps(length, observe=False) # do not collect data during transitions (maybe)
                 self.current_state = action
+                self.time_in_state = 0
+                self.set_sumo_phase(self.states[self.current_state])
                 reward = self._skip_n_steps(self.min_waiting_time, reward=True)  # step mean waiting time collect data after transition
             else: # shouldn't happen if nothing goes extremely wrong
                 raise ValueError(f"Invalid transition from state {self.current_state} to {action}.") 
@@ -270,6 +304,10 @@ class StateTrafficEnv(gym.Env):
 
         # check if done
         done = self.current_step >= self.time_limit
+        print(f"        [STEP] step={self.current_step} action={action} reward={reward:.3f} done={done}")
 
         return observation, reward, done, False, {}  # info is empty dict
 
+    def close(self):
+        # Always clean up
+        traci.close()

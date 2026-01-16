@@ -14,7 +14,7 @@ from gymnasium import spaces
 from sumolib import checkBinary
 
 
-class StateTrafficEnv(gym.Env):
+class StateTrafficEnvAI(gym.Env):
     """
     The StateTrafficEnv class is a custom environment for the traffic light control problem.
     AI is only called when in a main state (not during transitions).

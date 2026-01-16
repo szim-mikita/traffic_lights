@@ -5,8 +5,8 @@
 
 <additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
     <!-- Detectors -->
-    <inductionLoop id="e1_0" lane="-2321.18.83_0" pos="17.00" period="30.00" file="e1_0.xml"/>
-    <inductionLoop id="e1_1" lane="-2321.18.83_1" pos="17.00" period="30.00" file="e1_1.xml"/>
-    <inductionLoop id="e1_2" lane="-2318.0.00_0" pos="6.00" period="30.00" file="e1_2.xml"/>
-    <inductionLoop id="e1_3" lane="2319.0.00_0" pos="24.00" period="30.00" file="e1_3.xml"/>
+    <inductionLoop id="e1_0" lane="-2321.18.83_0" pos="17.00" period="300.00" file="e1_0.xml"/>
+    <inductionLoop id="e1_1" lane="-2321.18.83_1" pos="17.00" period="300.00" file="e1_1.xml"/>
+    <inductionLoop id="e1_2" lane="-2318.0.00_0" pos="6.00" period="300.00" file="e1_2.xml"/>
+    <inductionLoop id="e1_3" lane="2319.0.00_0" pos="24.00" period="300.00" file="e1_3.xml"/>
 </additional>
