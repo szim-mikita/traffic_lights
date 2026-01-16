@@ -9,7 +9,7 @@ import subprocess
 
 
 class StateTrafficEnv(gym.Env):
-    def __init__(self, render_mode=None, simulation_time=3600, traffic_scale=1):
+    def __init__(self, render_mode="console", simulation_time=3600, traffic_scale=1):
         super(StateTrafficEnv, self).__init__()
         self.render_mode = render_mode
 
@@ -87,7 +87,7 @@ class StateTrafficEnv(gym.Env):
         if 'SUMO_HOME' in os.environ:
             sys.path.append(os.path.join(os.environ['SUMO_HOME'], 'tools'))
 
-        if render_mode == 'console':
+        if self.render_mode == 'console':
             #Check if mac or linux
             if sys.platform == "darwin":
                 self.sumo_binary = "/opt/homebrew/Cellar/sumo/1.20.0/bin/sumo" 
@@ -304,7 +304,7 @@ class StateTrafficEnv(gym.Env):
 
         # check if done
         done = self.current_step >= self.time_limit
-        print(f"        [STEP] step={self.current_step} action={action} reward={reward:.3f} done={done}")
+        # print(f"        [STEP] step={self.current_step} action={action} reward={reward:.3f} done={done}")
 
         return observation, reward, done, False, {}  # info is empty dict
 

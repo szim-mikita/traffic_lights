@@ -1,0 +1,3 @@
+gym_envs/__pycache__
+gym_envs/envs/__pycache__
+wandb/

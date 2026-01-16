@@ -229,7 +229,7 @@ def run_eval(env: StateTrafficEnv, agent: DQNAgent, episodes: int, max_steps: in
             action = agent.act(obs, eval_mode=True)
 
             # OUTPUT that other people want:
-            print(action)
+            print(f"    [EVAL] episode={ep} step={t} action={action}")
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = bool(terminated or truncated)
