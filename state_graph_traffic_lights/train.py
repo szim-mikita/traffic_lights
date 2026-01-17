@@ -46,9 +46,9 @@ class DQN(nn.Module):
 
 @dataclass
 class DQNConfig:
-    hidden_dim: int = 128
+    hidden_dim: int = 64
 
-    batch_size: int = 128
+    batch_size: int = 64
     gamma: float = 0.99
     lr: float = 3e-4
     tau: float = 0.005
@@ -63,7 +63,8 @@ class DQNConfig:
     # Scaling for your dict obs -> feature vector (tune if needed)
     occ_scale: float = 100.0
     veh_scale: float = 7200.0
-    time_scale: float = 60.0
+    time_scale: float = 3600.0
+    state_var_scale: float = 1.0
 
 
 class StateDictFeaturizer:
@@ -78,7 +79,7 @@ class StateDictFeaturizer:
     """
     def __init__(self, cfg: DQNConfig):
         self.cfg = cfg
-        self.input_dim = 10
+        self.input_dim = 11
 
     def __call__(self, obs: Dict[str, Any]) -> np.ndarray:
         occ = np.asarray(obs["occupancy"], dtype=np.float32).reshape(-1)        # (4,)
@@ -86,6 +87,7 @@ class StateDictFeaturizer:
         cs = float(obs["current_state"])
         tis = obs["time_in_state"]
         tis = float(tis[0]) if isinstance(tis, (np.ndarray, list, tuple)) else float(tis)
+        stv = float(obs["all_states_used"])  # boolean to float
 
         # normalize
         occ_n = occ / self.cfg.occ_scale
@@ -100,7 +102,7 @@ class StateDictFeaturizer:
         else:
             cs_n = cs / 2.0
 
-        feat = np.concatenate([occ_n, veh_n, np.array([cs_n, tis_n], dtype=np.float32)], axis=0)
+        feat = np.concatenate([occ_n, veh_n, np.array([cs_n, tis_n, stv], dtype=np.float32)], axis=0)
         return feat.astype(np.float32)
 
 
@@ -136,6 +138,7 @@ class DQNAgent:
         state = self._obs_to_torch(obs_dict)
 
         if eval_mode:
+            print(f"        [ACT] action the model would select (eval mode): {int(self.policy_net(state).argmax(dim=1).item())}")
             with torch.no_grad():
                 return int(self.policy_net(state).argmax(dim=1).item())
 
@@ -145,9 +148,11 @@ class DQNAgent:
         )
         self.steps_done += 1
 
+        print(f"        [ACT] action the model would select: {int(self.policy_net(state).argmax(dim=1).item())} eps={eps:.3f}")
         if sample > eps:
             with torch.no_grad():
                 return int(self.policy_net(state).argmax(dim=1).item())
+        print("        [ACT] random action selected")
         return random.randrange(self.action_dim)
 
     def remember(self, obs, action: int, next_obs, reward: float, done: bool):
@@ -205,7 +210,6 @@ class DQNAgent:
                 "policy_state_dict": self.policy_net.state_dict(),
                 "target_state_dict": self.target_net.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
-                "steps_done": self.steps_done,
             },
             path,
         )
@@ -215,7 +219,6 @@ class DQNAgent:
         self.policy_net.load_state_dict(ckpt["policy_state_dict"])
         self.target_net.load_state_dict(ckpt["target_state_dict"])
         self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        self.steps_done = ckpt.get("steps_done", 0)
         self.policy_net.eval()
         self.target_net.eval()
 

@@ -75,12 +75,14 @@ class StateTrafficEnv(gym.Env):
             "occupancy": spaces.Box(low=0.0, high=100.0, shape=(4,), dtype=np.float32),
             "vehicle_count": spaces.Box(low=0, high=7200, shape=(4,), dtype=np.int32),
             "current_state": spaces.Discrete(3),
-            "time_in_state": spaces.Box(low=0, high=simulation_time, shape=(), dtype=np.int32)
+            "time_in_state": spaces.Box(low=0, high=simulation_time, shape=(), dtype=np.int32),
+            "all_states_used": spaces.Discrete(2),
         })
 
         self.observation_history = {
             "occupancy": [[] for _ in range(4)],
-            "vehicle_count": [[] for _ in range(4)]
+            "vehicle_count": [[] for _ in range(4)],
+            "state": []
         }
 
         # set up SUMO
@@ -168,7 +170,8 @@ class StateTrafficEnv(gym.Env):
             "occupancy": np.array(occupancy, dtype=np.float32),
             "vehicle_count": np.array(vehicle_count, dtype=np.int32),
             "current_state": self.current_state,
-            "time_in_state": self.time_in_state
+            "time_in_state": self.time_in_state,
+            "all_states_used": int(len(set(self.observation_history["state"][-(min(10, len(self.observation_history["state"]))):])) == 3)
         }
 
         return obs
@@ -198,10 +201,8 @@ class StateTrafficEnv(gym.Env):
         """
         Resets the observation history.
         """
-        self.observation_history = {
-            "occupancy": [[] for _ in range(4)],
-            "vehicle_count": [[] for _ in range(4)]
-        }
+        self.observation_history["occupancy"] = [[] for _ in range(4)]
+        self.observation_history["vehicle_count"] = [[] for _ in range(4)]
 
 
     def _get_reward(self):
@@ -213,9 +214,14 @@ class StateTrafficEnv(gym.Env):
         reward = 0.0
         for edge in self.edges:
             try:
-                reward -= traci.edge.getCO2Emission(edge)
+                reward -= traci.edge.getCO2Emission(edge) / 10000
             except Exception:
                 pass
+        reward += 1 - np.exp(0.01 * self.time_in_state)  # small penalty for staying in one state
+        # print(f"        [REWARD] time_in_state={self.time_in_state} CO2 reward={reward + np.exp(0.001 * self.time_in_state):.3f}")
+        # print(f"        [REWARD] time reward={-np.exp(0.001 * self.time_in_state):.3f}")
+        # print(f"        [REWARD] total reward={reward:.3f}")
+        reward -= 10 if len(set(self.observation_history["state"][-(min(10, len(self.observation_history["state"]))):])) < 3 else 0.0  # penalty for not changing states
         return reward
 
 
@@ -241,7 +247,7 @@ class StateTrafficEnv(gym.Env):
                 reward_total += self._get_reward()
             self.current_step += 1
             self.time_in_state += 1
-        return reward_total
+        return reward_total / n
 
 
     def reset(self, seed=None, options=None):
@@ -257,6 +263,7 @@ class StateTrafficEnv(gym.Env):
 
         self.current_step = 0
         self.current_state = self.initial_state
+        self.observation_history["state"] = [self.current_state]
         self.time_in_state = 0
 
         # set initial traffic light state
@@ -287,15 +294,17 @@ class StateTrafficEnv(gym.Env):
         else: 
             transition_key = (self.current_state, action)
             if transition_key in self.transitions:
+                reward = 0.0
                 for length, intermediate_state in self.transitions[transition_key]:
                     # set intermediate state
                     self.set_sumo_phase(intermediate_state)
                     # step simulation
-                    self._skip_n_steps(length, observe=False) # do not collect data during transitions (maybe)
+                    reward += self._skip_n_steps(length, observe=True) # do not collect data during transitions (maybe)
                 self.current_state = action
+                self.observation_history["state"].append(self.current_state)
                 self.time_in_state = 0
                 self.set_sumo_phase(self.states[self.current_state])
-                reward = self._skip_n_steps(self.min_waiting_time, reward=True)  # step mean waiting time collect data after transition
+                reward += self._skip_n_steps(self.min_waiting_time, reward=True)  # step mean waiting time collect data after transition
             else: # shouldn't happen if nothing goes extremely wrong
                 raise ValueError(f"Invalid transition from state {self.current_state} to {action}.") 
             
